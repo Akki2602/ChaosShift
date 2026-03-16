@@ -1,0 +1,4 @@
+name: ChaosShift
+version: '1.0.0'
+main: akki.chaosshift.ChaosShift
+api-version: '1.21'
