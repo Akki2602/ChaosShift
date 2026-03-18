@@ -6,15 +6,19 @@ import org.bukkit.entity.Player;
 
 public final class ChaosShift extends JavaPlugin {
 
-    private ChaosEvents events;
+    private GameManager gameManager;
 
     @Override
     public void onEnable() {
         // Plugin startup logic
-        getLogger().info("Hello World");
+        getLogger().info("ChaosShift enabled!");
 
-        events = new ChaosEvents(this);
-        events.startChaos();
+        gameManager = new GameManager(this);
+
+        // auto start after 10 seconds (testing)
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            gameManager.startGame();
+        }, 200L);
     }
 
     @Override
