@@ -1,5 +1,7 @@
 package akki.chaosshift;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.entity.Player;
@@ -16,13 +18,15 @@ public class GameManager {
     public void startGame(){
 
         if (Bukkit.getOnlinePlayers().size() < 2){
-            Bukkit.broadcastMessage("§cNot enough players!");
+            Bukkit.broadcast(
+                    Component.text("Not enough players!", NamedTextColor.RED)
+            );
             return;
         }
 
         state = GameState.RUNNING;
 
-        Bukkit.broadcastMessage("§aGame Started!");
+        Bukkit.broadcast(net.kyori.adventure.text.Component.text("Game Started!"));
 
         ChaosEvents events = new ChaosEvents(plugin);
         events.startChaos();
@@ -33,10 +37,20 @@ public class GameManager {
     public void endGame() {
         state = GameState.ENDING;
 
-        Bukkit.broadcastMessage("§cGame Over!");
+        Bukkit.broadcast(net.kyori.adventure.text.Component.text("Game Over!"));
 
         for (Player p : Bukkit.getOnlinePlayers()) {
-            p.sendTitle("Game Over", "", 10, 60, 10);
+            p.showTitle(
+                    net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text("Game Over"),
+                            net.kyori.adventure.text.Component.empty(),
+                            net.kyori.adventure.title.Title.Times.times(
+                                    java.time.Duration.ofMillis(500),
+                                    java.time.Duration.ofMillis(3000),
+                                    java.time.Duration.ofMillis(1000)
+                            )
+                    )
+            );
         }
 
         state = GameState.WAITING;
