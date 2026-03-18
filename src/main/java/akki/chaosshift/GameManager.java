@@ -3,13 +3,14 @@ package akki.chaosshift;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 
 public class GameManager {
 
     private final Plugin plugin;
     private GameState state = GameState.WAITING;
+    private ChaosEvents events;
 
     public GameManager(Plugin plugin){
         this.plugin = plugin;
@@ -24,11 +25,45 @@ public class GameManager {
             return;
         }
 
+        state = GameState.STARTING;
+
+        startCountdown();
+    }
+
+    private void startCountdown(){
+
+        final int[] timeLeft = {5};
+
+        Bukkit.getScheduler().runTaskTimer(plugin, task -> {
+
+            if (timeLeft[0] <= 0) {
+
+                Bukkit.broadcast(
+                        Component.text("GO!", NamedTextColor.GREEN)
+                );
+
+                task.cancel();
+                beginGame();
+                return;
+            }
+
+            Bukkit.broadcast(
+                    Component.text("Starting in " + timeLeft[0] + "...", NamedTextColor.YELLOW)
+            );
+
+            timeLeft[0]--;
+        }, 0L, 20L);
+    }
+
+    private void beginGame(){
+
         state = GameState.RUNNING;
 
-        Bukkit.broadcast(net.kyori.adventure.text.Component.text("Game Started!"));
+        Bukkit.broadcast(
+                Component.text("Game Started!", NamedTextColor.GREEN)
+        );
 
-        ChaosEvents events = new ChaosEvents(plugin);
+        events = new ChaosEvents(plugin);
         events.startChaos();
 
         Bukkit.getScheduler().runTaskLater(plugin, this::endGame, 12000L);
@@ -37,23 +72,28 @@ public class GameManager {
     public void endGame() {
         state = GameState.ENDING;
 
-        Bukkit.broadcast(net.kyori.adventure.text.Component.text("Game Over!"));
+        // stop chaos FIRST
+        if (events != null) {
+            events.stopChaos();
+        }
+
+        Bukkit.broadcast(
+                Component.text("Game Over!", NamedTextColor.RED)
+        );
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             p.showTitle(
                     net.kyori.adventure.title.Title.title(
-                            net.kyori.adventure.text.Component.text("Game Over"),
-                            net.kyori.adventure.text.Component.empty(),
-                            net.kyori.adventure.title.Title.Times.times(
-                                    java.time.Duration.ofMillis(500),
-                                    java.time.Duration.ofMillis(3000),
-                                    java.time.Duration.ofMillis(1000)
-                            )
+                            Component.text("Game Over"),
+                            Component.empty()
                     )
             );
         }
 
-        state = GameState.WAITING;
+        // small delay before resetting
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            state = GameState.WAITING;
+        }, 100L);
     }
 
     public GameState getState() {
