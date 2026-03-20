@@ -26,7 +26,7 @@ public class GameManager {
                     startGame();
                 }
             }
-        }, 0L, 100L);;;;;;
+        }, 0L, 100L);
     }
 
     public void startGame(){
@@ -106,9 +106,7 @@ public class GameManager {
         }
 
         // small delay before resetting
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            state = GameState.WAITING;
-        }, 100L);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 100L);
     }
 
     public GameState getState() {
