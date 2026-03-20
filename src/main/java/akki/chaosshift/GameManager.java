@@ -16,7 +16,22 @@ public class GameManager {
         this.plugin = plugin;
     }
 
+    public void startAutoGameLoop() {
+
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+
+            if(state == GameState.WAITING) {
+
+                if (Bukkit.getOnlinePlayers().size() >= 2) {
+                    startGame();
+                }
+            }
+        }, 0L, 100L);;;;;;
+    }
+
     public void startGame(){
+
+        if (state != GameState.WAITING) return;
 
         if (Bukkit.getOnlinePlayers().size() < 2){
             Bukkit.broadcast(
