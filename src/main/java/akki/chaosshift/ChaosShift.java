@@ -3,7 +3,6 @@ package akki.chaosshift;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
 
 public final class ChaosShift extends JavaPlugin {
 
@@ -11,6 +10,12 @@ public final class ChaosShift extends JavaPlugin {
 
     @Override
     public void onEnable() {
+
+        Bukkit.getPluginManager().registerEvents(
+                new PlayerListener(gameManager),
+                this
+        );
+
         // Plugin startup logic
         getLogger().info("ChaosShift enabled!");
 

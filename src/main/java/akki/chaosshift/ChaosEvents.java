@@ -1,17 +1,13 @@
 package akki.chaosshift;
 
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.title.Title;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.*;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.jetbrains.annotations.NotNull;
 
-import java.util.Locale;
 import java.util.Random;
 
 public class ChaosEvents {
@@ -26,52 +22,106 @@ public class ChaosEvents {
     private final int maxZ = 30;
     private final int arenaY = 80;
 
-    public ChaosEvents(Plugin plugin) {
+    private final java.util.List<Runnable> eventPool = new java.util.ArrayList<>();
+    private final java.util.Queue<Runnable> eventQueue = new java.util.LinkedList<>();
+
+    private final GameManager gameManager;
+
+    public ChaosEvents(Plugin plugin, GameManager gameManager) {
         this.plugin = plugin;
+        this.gameManager = gameManager;
+
+        eventPool.add(this::potionEffects);
+        eventPool.add(this::spawnChasingMobs);
+        eventPool.add(this::teleportSwap);
+        eventPool.add(this::changeDimension);
+        eventPool.add(this::mutateBlocks);
+
+        reshuffleEvents();
+    }
+
+    private void reshuffleEvents() {
+
+        java.util.List<Runnable> shuffled = new java.util.ArrayList<>(eventPool);
+        java.util.Collections.shuffle(shuffled);
+
+        eventQueue.clear();
+        eventQueue.addAll(shuffled);
+    }
+
+    private Runnable getNextEvent() {
+
+        if (eventQueue.isEmpty()) {
+            reshuffleEvents();
+        }
+        return eventQueue.poll();
     }
 
     public void startChaos() {
 
         taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
 
-            int event = random.nextInt(5);
+            Runnable event = getNextEvent();
+            if (event != null) event.run();
 
-            switch (event) {
+        }, 0L, Math.max(100L, 600L - (gameManager.getDifficultyLevel() * 50L))).getTaskId();
+    }
 
-                case 0:
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 2));
-                        p.sendMessage("§aEverything changed: Speed Boost!");
-                    }
-                    break;
+    private void potionEffects() {
 
-                case 1:
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        p.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, 200, 3));
-                        p.sendMessage("§bEverything changed: Low gravity!");
-                    }
-                    break;
+        int difficulty = gameManager.getDifficultyLevel();
 
-                case 2:
-                    for (Player p : Bukkit.getOnlinePlayers()) {
-                        World world = p.getWorld();
-                        world.setTime(random.nextBoolean() ? 1000 : 18000);
-                    }
-                    Bukkit.broadcast(
-                            net.kyori.adventure.text.Component.text("Everything changed: Time flipped!")
-                    );
-                    break;
+        // scale but limit max power
+        int amp = Math.min(5, difficulty);
 
-                case 3:
-                    spawnChasingMobs();
-                    break;
+        for (var player : Bukkit.getOnlinePlayers()) {
 
-                case 4:
-                    teleportSwap();
-                    break;
-            }
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.SPEED,
+                    200,
+                    amp
+            ));
 
-        }, 0L, 600L).getTaskId();
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.JUMP_BOOST,
+                    200,
+                    amp
+            ));
+
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.STRENGTH,
+                    200,
+                    Math.max(1, amp / 2)
+            ));
+
+            // Sound
+            player.playSound(
+                    player.getLocation(),
+                    org.bukkit.Sound.ENTITY_PLAYER_LEVELUP,
+                    1f,
+                    1.2f
+            );
+
+            // Title
+            player.showTitle(
+                    net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text(
+                                    "Power Surge!",
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ff0000")
+                            ),
+                            net.kyori.adventure.text.Component.text(
+                                    "Level " + difficulty,
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ffff00")
+                            )
+                    )
+            );
+        }
+
+        Bukkit.broadcast(
+                net.kyori.adventure.text.Component.text(
+                        "Everything changed: Power Surge! (Level " + difficulty + ")"
+                )
+        );
     }
 
     private final  EntityType[] chaosMobs = {
@@ -276,6 +326,75 @@ public class ChaosEvents {
 
 
 
+    }
+
+    private void mutateBlocks() {
+
+        int blocksToChange = 4 + gameManager.getDifficultyLevel();
+
+        var materials = new org.bukkit.Material[]{
+                Material.SLIME_BLOCK,
+                Material.HONEY_BLOCK,
+                Material.MAGMA_BLOCK,
+                Material.AIR
+        };
+
+        var players = new java.util.ArrayList<>(Bukkit.getOnlinePlayers());
+        java.util.Collections.shuffle(players);
+
+        players.stream().limit(3).forEach(player -> {
+
+            var world = player.getWorld();
+            var baseLoc = player.getLocation();
+
+            for (int i = 0; i < blocksToChange; i++) {
+
+                int xOffset = random.nextInt(7) - 3;
+                int zOffset = random.nextInt(7) - 3;
+
+                int x = baseLoc.getBlockX() + xOffset;
+                int z = baseLoc.getBlockZ() + zOffset;
+
+                if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+
+                var loc = new org.bukkit.Location(world, x, arenaY, z);
+                var block = loc.getBlock();
+
+                if (block.getType() == Material.AIR) continue;
+
+                var oldMaterial = block.getType();
+                var newMaterial = materials[random.nextInt(materials.length)];
+
+                block.setType(newMaterial);
+
+                Bukkit.getScheduler().runTaskLater(plugin, () -> block.setType(oldMaterial), 80L);
+            }
+            player.playSound(
+                    player.getLocation(),
+                    Sound.BLOCK_SLIME_BLOCK_PLACE,
+                    1f,
+                    1f
+            );
+
+            player.showTitle(
+                    net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text(
+                                    "Unstable Ground!",
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ff9900")
+                            ),
+                            net.kyori.adventure.text.Component.text(
+                                    "Watch your step!",
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ffff00")
+                            )
+                    )
+            );
+        });
+
+        Bukkit.broadcast(
+                net.kyori.adventure.text.Component.text(
+                        "Everything changed: The ground is unstable!"
+                )
+        );
     }
 
 

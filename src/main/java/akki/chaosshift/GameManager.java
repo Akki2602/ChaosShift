@@ -3,6 +3,7 @@ package akki.chaosshift;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
@@ -11,9 +12,17 @@ public class GameManager {
     private final Plugin plugin;
     private GameState state = GameState.WAITING;
     private ChaosEvents events;
+    private int gameTime = 0;
+    private int difficultyLevel = 1;
+
+    private final java.util.Set<java.util.UUID> alivePlayers = new java.util.HashSet<>();
 
     public GameManager(Plugin plugin){
         this.plugin = plugin;
+    }
+
+    public int getDifficultyLevel(){
+        return difficultyLevel;
     }
 
     public void startAutoGameLoop() {
@@ -31,6 +40,10 @@ public class GameManager {
 
     public void startGame(){
 
+        for (var player : Bukkit.getOnlinePlayers()) {
+            alivePlayers.add(player.getUniqueId());
+        }
+
         if (state != GameState.WAITING) return;
 
         if (Bukkit.getOnlinePlayers().size() < 2){
@@ -39,6 +52,21 @@ public class GameManager {
             );
             return;
         }
+
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+
+            gameTime++;
+
+            if(gameTime % 30 == 0){
+                difficultyLevel++;
+
+                Bukkit.broadcast(
+                        net.kyori.adventure.text.Component.text(
+                                "Difficulty Increase! Level " + difficultyLevel
+                        )
+                );
+            }
+        }, 20L, 20L);
 
         state = GameState.STARTING;
 
@@ -78,10 +106,55 @@ public class GameManager {
                 Component.text("Game Started!", NamedTextColor.GREEN)
         );
 
-        events = new ChaosEvents(plugin);
+        events = new ChaosEvents(plugin, this);
         events.startChaos();
 
         Bukkit.getScheduler().runTaskLater(plugin, this::endGame, 12000L);
+    }
+
+    public void playerDied(java.util.UUID uuid) {
+        alivePlayers.remove(uuid);
+
+        var player = Bukkit.getPlayer(uuid);
+
+        if (player != null) {
+            player.setGameMode(GameMode.SPECTATOR);
+        }
+
+        Bukkit.broadcast(
+                net.kyori.adventure.text.Component.text(
+                        "A player has been eliminated! Remaining: " + alivePlayers.size()
+                )
+        );
+
+        checkWinCondition();
+    }
+
+    private void checkWinCondition(){
+
+        if (alivePlayers.size() == 1) {
+
+            var winnerUUID = alivePlayers.iterator().next();
+            var winner = Bukkit.getPlayer(winnerUUID);
+
+            if (winner != null) {
+
+                Bukkit.broadcast(
+                        net.kyori.adventure.text.Component.text(
+                                winner.getName() + " has won the game!"
+                        )
+                );
+
+                winner.showTitle(
+                        net.kyori.adventure.title.Title.title(
+                                net.kyori.adventure.text.Component.text("VICTORY"),
+                                net.kyori.adventure.text.Component.text("You Survived!")
+                        )
+                );
+            }
+
+            endGame();
+        }
     }
 
     public void endGame() {
@@ -104,6 +177,7 @@ public class GameManager {
                     )
             );
         }
+        alivePlayers.clear();
 
         // small delay before resetting
         Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 100L);
