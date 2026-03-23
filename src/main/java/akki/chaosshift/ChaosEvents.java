@@ -36,6 +36,7 @@ public class ChaosEvents {
         eventPool.add(this::teleportSwap);
         eventPool.add(this::changeDimension);
         eventPool.add(this::mutateBlocks);
+        eventPool.add(this::lowGravity);
 
         reshuffleEvents();
     }
@@ -71,30 +72,29 @@ public class ChaosEvents {
 
         int difficulty = gameManager.getDifficultyLevel();
 
-        // scale but limit max power
+
         int amp = Math.min(5, difficulty);
 
         for (var player : Bukkit.getOnlinePlayers()) {
 
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.SPEED,
-                    200,
+                    600,
                     amp
             ));
 
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.JUMP_BOOST,
-                    200,
+                    600,
                     amp
             ));
 
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.STRENGTH,
-                    200,
+                    600,
                     Math.max(1, amp / 2)
             ));
 
-            // Sound
             player.playSound(
                     player.getLocation(),
                     org.bukkit.Sound.ENTITY_PLAYER_LEVELUP,
@@ -102,7 +102,6 @@ public class ChaosEvents {
                     1.2f
             );
 
-            // Title
             player.showTitle(
                     net.kyori.adventure.title.Title.title(
                             net.kyori.adventure.text.Component.text(
@@ -124,48 +123,190 @@ public class ChaosEvents {
         );
     }
 
-    private final  EntityType[] chaosMobs = {
-            EntityType.ZOMBIE,
-            EntityType.SKELETON,
-            EntityType.SPIDER,
-            EntityType.CREEPER
-    };
+    private void lowGravity() {
 
-    private void spawnChasingMobs() {
+        int difficulty = gameManager.getDifficultyLevel();
 
-        EntityType type = chaosMobs[random.nextInt(chaosMobs.length)];
+        // scale but limit max power
+        int amp = Math.min(5, difficulty);
 
-        for (Player player : Bukkit.getOnlinePlayers()) {
+        for (var player : Bukkit.getOnlinePlayers()) {
 
-            for (int i = 0; i < 3; i++) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.SPEED,
+                    600,
+                    amp
+            ));
 
-                Location loc = player.getLocation().clone().add(
-                        random.nextInt(6) - 3,
-                        0,
-                        random.nextInt(6) -3
-                );
+            player.playSound(
+                    player.getLocation(),
+                    Sound.ENTITY_SHULKER_AMBIENT,
+                    1f,
+                    1.2f
+            );
 
-                LivingEntity mob = (LivingEntity) player.getWorld().spawnEntity(loc, type);
-
-                if(mob instanceof Monster monster){
-                    monster.setTarget(player);
-                }
-            }
+            player.showTitle(
+                    net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text(
+                                    "Low Gravity!",
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ff11ff")
+                            ),
+                            net.kyori.adventure.text.Component.text(
+                                    "Level " + difficulty,
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ffff00")
+                            )
+                    )
+            );
         }
 
         Bukkit.broadcast(
-                net.kyori.adventure.text.Component.text("Everything changed: " + type.name() + " are hunting you!")
+                net.kyori.adventure.text.Component.text(
+                        "Everything changed: Low Gravity! (Level " + difficulty + ")"
+                )
         );
 
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            for (World world : Bukkit.getWorlds()) {
-                for (Entity e : world.getEntities()) {
-                    if (e instanceof Monster) {
-                        e.remove();
-                    }
+    }
+
+    private void spawnChasingMobs() {
+
+        var players = new java.util.ArrayList<>(Bukkit.getOnlinePlayers());
+        if (players.isEmpty()) return;
+
+        java.util.Collections.shuffle(players);
+        players.stream().limit(3).forEach(player -> {
+
+            var world = player.getWorld();
+
+            var mobTypes = getMobsForWorld(world);
+
+            if (mobTypes.isEmpty()) return;
+
+            var targetMob = mobTypes.get(random.nextInt(mobTypes.size()));
+
+            var loc = player.getLocation().clone().add(
+                    random.nextInt(5) - 2,
+                    0,
+                    random.nextInt(5) - 2
+            );
+
+            int difficulty = gameManager.getDifficultyLevel();
+
+// number of mobs increases over time
+            int mobCount = Math.min(5, 1 + difficulty / 2);
+
+            for (int i = 0; i < mobCount; i++) {
+
+                var spawnLoc = player.getLocation().clone().add(
+                        random.nextInt(5) - 2,
+                        0,
+                        random.nextInt(5) - 2
+                );
+
+                spawnLoc.setY(world.getHighestBlockYAt(spawnLoc) + 1);
+
+                var entity = world.spawnEntity(spawnLoc, targetMob);
+
+                if (entity instanceof org.bukkit.entity.Mob mob) {
+                    mob.setTarget(player);
+
+                    applyMobScaling(mob, difficulty); // 🔥 IMPORTANT
+
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        if (!mob.isDead()) {
+                            mob.remove();
+                        }
+                    }, 200L); // 10 seconds
                 }
+
             }
-        }, 600L);
+
+
+            // Sound feedback
+            player.playSound(
+                    player.getLocation(),
+                    org.bukkit.Sound.ENTITY_ZOMBIE_AMBIENT,
+                    1f,
+                    1f
+            );
+
+            // Title
+            player.showTitle(
+                    net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text(
+                                    "Hunted!",
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ff0000")
+                            ),
+                            net.kyori.adventure.text.Component.text(
+                                    targetMob.name(),
+                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ffaa00")
+                            )
+                    )
+            );
+        });
+
+
+        Bukkit.broadcast(
+                net.kyori.adventure.text.Component.text(
+                        "Everything changed: You are being hunted!"
+                )
+        );
+    }
+
+    private void applyMobScaling(org.bukkit.entity.Mob mob, int difficulty) {
+
+        // Speed scaling
+        mob.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                org.bukkit.potion.PotionEffectType.SPEED,
+                200,
+                Math.min(3, difficulty / 2)
+        ));
+
+        // Strength scaling
+        mob.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                org.bukkit.potion.PotionEffectType.STRENGTH,
+                200,
+                Math.min(2, difficulty / 3)
+        ));
+
+        // Extra health scaling
+        var attribute = mob.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        if (attribute != null) {
+            double newHealth = attribute.getBaseValue() + (difficulty * 2);
+            attribute.setBaseValue(newHealth);
+            mob.setHealth(newHealth);
+        }
+
+        // Optional: make mobs slightly faster AI
+        mob.setPersistent(false); // prevents buildup
+    }
+
+    private java.util.List<org.bukkit.entity.EntityType> getMobsForWorld(org.bukkit.World world) {
+
+        var list = new java.util.ArrayList<org.bukkit.entity.EntityType>();
+
+        switch (world.getEnvironment()) {
+
+            case NORMAL -> {
+                list.add(org.bukkit.entity.EntityType.ZOMBIE);
+                list.add(org.bukkit.entity.EntityType.SKELETON);
+                list.add(org.bukkit.entity.EntityType.SPIDER);
+                list.add(org.bukkit.entity.EntityType.CREEPER);
+            }
+
+            case NETHER -> {
+                list.add(org.bukkit.entity.EntityType.BLAZE);
+                list.add(org.bukkit.entity.EntityType.WITHER_SKELETON);
+                list.add(org.bukkit.entity.EntityType.PIGLIN);
+                list.add(org.bukkit.entity.EntityType.MAGMA_CUBE);
+            }
+
+            case THE_END -> {
+                list.add(org.bukkit.entity.EntityType.ENDERMAN);
+                list.add(org.bukkit.entity.EntityType.SHULKER);
+            }
+        }
+
+        return list;
     }
 
     private void teleportSwap() {
@@ -396,6 +537,8 @@ public class ChaosEvents {
                 )
         );
     }
+
+
 
 
 
