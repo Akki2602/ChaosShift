@@ -1,5 +1,6 @@
 package akki.chaosshift;
 
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
@@ -10,6 +11,12 @@ public final class ChaosShift extends JavaPlugin {
 
     @Override
     public void onEnable() {
+
+        for (var player : Bukkit.getOnlinePlayers()) {
+            if (player.isOp()) {
+                player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.COMPASS));
+            }
+        }
 
         Bukkit.getPluginManager().registerEvents(
                 new PlayerListener(gameManager),
@@ -27,7 +34,6 @@ public final class ChaosShift extends JavaPlugin {
 
         gameManager = new GameManager(this);
 
-        gameManager.startAutoGameLoop();
     }
 
         private void preloadWorld(String name) {
