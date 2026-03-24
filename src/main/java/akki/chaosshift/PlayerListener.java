@@ -1,5 +1,9 @@
 package akki.chaosshift;
 
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -75,6 +79,36 @@ public class PlayerListener implements Listener{
         if (event.getCause() == EntityDamageEvent.DamageCause.FALL) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler
+    public void onRespawn(org.bukkit.event.player.PlayerRespawnEvent event) {
+
+        var player = event.getPlayer();
+
+        if (!gameManager.isAlive(player.getUniqueId())) {
+            player.setGameMode(GameMode.SPECTATOR);
+
+            event.setRespawnLocation(new Location(
+                    Bukkit.getWorld("world"), 0, 131, 0
+            ));
+        }
+    }
+
+    @EventHandler
+    public void onInteract(org.bukkit.event.player.PlayerInteractEvent event) {
+
+        var player = event.getPlayer();
+
+        if (event.getItem() == null) return;
+
+        if (event.getItem().getType() != Material.COMPASS) return;
+
+        if (!player.isOp()) return;
+
+        event.setCancelled(true);
+
+        gameManager.startGame();
     }
 
 }

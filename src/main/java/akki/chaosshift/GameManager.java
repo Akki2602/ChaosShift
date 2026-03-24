@@ -23,6 +23,8 @@ public class GameManager {
     private final int minY = 118;
     private final int maxY = 130;
 
+    private boolean gameRunning = false;
+
     private final org.bukkit.World world = org.bukkit.Bukkit.getWorld("world");
 
     private final java.util.Map<org.bukkit.Location, org.bukkit.Material> platformBlocks = new java.util.HashMap<>();
@@ -84,6 +86,10 @@ public class GameManager {
     }
 
     public void startGame(){
+
+        if (gameRunning) return;
+
+        gameRunning = true;
 
         savePlatform();
 
@@ -179,12 +185,21 @@ public class GameManager {
     }
 
     public void playerDied(java.util.UUID uuid) {
+
+        if(!alivePlayers.contains(uuid)) return;
+
         alivePlayers.remove(uuid);
 
         var player = Bukkit.getPlayer(uuid);
 
         if (player != null) {
+
             player.setGameMode(GameMode.SPECTATOR);
+
+            player.teleport(new org.bukkit.Location(
+                    Bukkit.getWorld("world"), 0, 131, 0
+            ));
+
         }
 
         Bukkit.broadcast(
@@ -194,6 +209,10 @@ public class GameManager {
         );
 
         checkWinCondition();
+    }
+
+    public boolean isAlive(java.util.UUID uuid) {
+        return alivePlayers.contains(uuid);
     }
 
     private void updateScoreboard() {
@@ -263,6 +282,9 @@ public class GameManager {
     }
 
     public void endGame() {
+
+        gameRunning = false;
+
         state = GameState.ENDING;
 
         // stop chaos FIRST
