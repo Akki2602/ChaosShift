@@ -34,6 +34,8 @@ public final class ChaosShift extends JavaPlugin {
 
         gameManager = new GameManager(this);
 
+        getCommand("startchaos").setExecutor(new StartChaosCommand(gameManager));
+
     }
 
         private void preloadWorld(String name) {

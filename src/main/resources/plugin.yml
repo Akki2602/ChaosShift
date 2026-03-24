@@ -2,3 +2,7 @@ name: ChaosShift
 version: '1.0.0'
 main: akki.chaosshift.ChaosShift
 api-version: '1.21'
+commands:
+  startchaos:
+    description: Starts the ChaosShift game
+    usage: /startchaos
