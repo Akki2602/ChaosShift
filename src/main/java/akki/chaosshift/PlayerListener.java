@@ -109,7 +109,7 @@ public class PlayerListener implements Listener{
         }
     }
 
-    @EventHandler
+    @org.bukkit.event.EventHandler
     public void onInteract(org.bukkit.event.player.PlayerInteractEvent event) {
 
         var player = event.getPlayer();
@@ -118,20 +118,36 @@ public class PlayerListener implements Listener{
 
         var item = event.getItem();
 
-        // 🧭 Open kit menu
-        if (item.getType() == org.bukkit.Material.COMPASS &&
-                item.getItemMeta() != null &&
-                "§aKit Selection".equals(item.getItemMeta().getDisplayName())) {
+        // DEBUG (optional)
+        player.sendMessage("Clicked: " + item.getType());
 
-            event.setCancelled(true);
-            player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
-            return;
+        // 🧭 COMPASS → open menu
+        if (item.getType() == org.bukkit.Material.COMPASS) {
+
+            if (item.getItemMeta() != null &&
+                    "§aKit Selection".equals(item.getItemMeta().getDisplayName())) {
+
+                event.setCancelled(true);
+
+                player.sendMessage("Opening kit menu..."); // debug
+
+                player.openInventory(KitMenu.createMenu(gameManager));
+                return;
+            }
         }
 
-        // 💎 Start game (OP only)
-        if (item.getType() == org.bukkit.Material.EMERALD && player.isOp()) {
+        // 💎 EMERALD → start game
+        if (item.getType() == org.bukkit.Material.EMERALD) {
+
+            if (!player.isOp()) {
+                player.sendMessage("Not OP");
+                return;
+            }
 
             event.setCancelled(true);
+
+            player.sendMessage("Starting game..."); // debug
+
             gameManager.startGame();
         }
     }

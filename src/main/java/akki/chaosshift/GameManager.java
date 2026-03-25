@@ -289,6 +289,10 @@ public class GameManager {
         );
     }
 
+    public int getVotes(KitType kit) {
+        return kitVotes.getOrDefault(kit, 0);
+    }
+
     private void beginGame(){
 
         decideWinningKit();

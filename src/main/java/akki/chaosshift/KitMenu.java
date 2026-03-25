@@ -11,26 +11,47 @@ import java.util.Map;
 
 public class KitMenu {
 
-    public static Inventory createMenu(Map<KitType, Integer> votes) {
+    public static org.bukkit.inventory.Inventory createMenu(GameManager gm) {
 
-        Inventory inv = Bukkit.createInventory(null, 9, "Select Kit");
+        var inv = org.bukkit.Bukkit.createInventory(null, 9, "Select Kit");
 
-        inv.setItem(2, createItem(Material.IRON_SWORD, "§cWarrior", votes.getOrDefault(KitType.WARRIOR, 0)));
-        inv.setItem(4, createItem(Material.BOW, "§aArcher", votes.getOrDefault(KitType.ARCHER, 0)));
-        inv.setItem(6, createItem(Material.SHIELD, "§bTank", votes.getOrDefault(KitType.TANK, 0)));
+        inv.setItem(2, createItem(
+                org.bukkit.Material.IRON_SWORD,
+                "§cWarrior",
+                gm.getVotes(KitType.WARRIOR)
+        ));
+
+        inv.setItem(4, createItem(
+                org.bukkit.Material.BOW,
+                "§aArcher",
+                gm.getVotes(KitType.ARCHER)
+        ));
+
+        inv.setItem(6, createItem(
+                org.bukkit.Material.SHIELD,
+                "§bTank",
+                gm.getVotes(KitType.TANK)
+        ));
 
         return inv;
     }
 
-    private static ItemStack createItem(Material mat, String name, int votes) {
 
-        ItemStack item = new ItemStack(mat);
-        ItemMeta meta = item.getItemMeta();
+
+    private static org.bukkit.inventory.ItemStack createItem(
+            org.bukkit.Material mat,
+            String name,
+            int votes
+    ) {
+
+        var item = new org.bukkit.inventory.ItemStack(mat);
+        var meta = item.getItemMeta();
 
         meta.setDisplayName(name);
-        meta.setLore(List.of("§7Votes: §f" + votes));
+        meta.setLore(java.util.List.of("§7Votes: §f" + votes));
 
         item.setItemMeta(meta);
+
         return item;
     }
 }

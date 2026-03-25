@@ -133,7 +133,7 @@ public class ChaosEvents {
         for (var player : Bukkit.getOnlinePlayers()) {
 
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.SPEED,
+                    PotionEffectType.LEVITATION,
                     600,
                     amp
             ));
@@ -191,7 +191,6 @@ public class ChaosEvents {
 
             int difficulty = gameManager.getDifficultyLevel();
 
-// number of mobs increases over time
             int mobCount = Math.min(5, 1 + difficulty / 2);
 
             for (int i = 0; i < mobCount; i++) {
@@ -209,7 +208,7 @@ public class ChaosEvents {
                 if (entity instanceof org.bukkit.entity.Mob mob) {
                     mob.setTarget(player);
 
-                    applyMobScaling(mob, difficulty); // 🔥 IMPORTANT
+                    applyMobScaling(mob, difficulty);
 
                     Bukkit.getScheduler().runTaskLater(plugin, () -> {
                         if (!mob.isDead()) {
@@ -221,7 +220,6 @@ public class ChaosEvents {
             }
 
 
-            // Sound feedback
             player.playSound(
                     player.getLocation(),
                     org.bukkit.Sound.ENTITY_ZOMBIE_AMBIENT,
@@ -229,7 +227,6 @@ public class ChaosEvents {
                     1f
             );
 
-            // Title
             player.showTitle(
                     net.kyori.adventure.title.Title.title(
                             net.kyori.adventure.text.Component.text(
