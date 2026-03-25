@@ -134,7 +134,7 @@ public class ChaosEvents {
 
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     PotionEffectType.LEVITATION,
-                    600,
+                    200,
                     amp
             ));
 

@@ -209,31 +209,24 @@ public class PlayerListener implements Listener{
                     gameManager.voteKit(player.getUniqueId(), KitType.WARRIOR);
                     player.sendMessage("Voted: Warrior");
 
-                    gameManager.voteKit(player.getUniqueId(), KitType.WARRIOR);
-
-                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                    player.openInventory(KitMenu.createMenu(gameManager));
                 }
 
                 case BOW -> {
                     gameManager.voteKit(player.getUniqueId(), KitType.ARCHER);
                     player.sendMessage("Voted: Archer");
 
-                    gameManager.voteKit(player.getUniqueId(), KitType.ARCHER);
-
-                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                    player.openInventory(KitMenu.createMenu(gameManager));
                 }
 
                 case SHIELD -> {
                     gameManager.voteKit(player.getUniqueId(), KitType.TANK);
                     player.sendMessage("Voted: Tank");
 
-                    gameManager.voteKit(player.getUniqueId(), KitType.TANK);
-
-                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                    player.openInventory(KitMenu.createMenu(gameManager));
                 }
             }
 
-            player.closeInventory();
         }
     }
 
@@ -258,5 +251,22 @@ public class PlayerListener implements Listener{
         }
     }
 
+    @org.bukkit.event.EventHandler
+    public void onMove(org.bukkit.event.player.PlayerMoveEvent event) {
+
+        var player = event.getPlayer();
+
+        // Only care if game running
+        if (gameManager.getState() != GameState.RUNNING) return;
+
+        // Already landed
+        if (gameManager.hasLanded(player.getUniqueId())) return;
+
+        // Check if player is on ground
+        if (player.isOnGround()) {
+
+            gameManager.playerLanded(player.getUniqueId());
+        }
+    }
 
 }

@@ -42,6 +42,9 @@ public class GameManager {
 
     private int votingTime = 10;
 
+    private final java.util.Set<java.util.UUID> landedPlayers = new java.util.HashSet<>();
+    private boolean eventsStarted = false;
+
     public void setKit(java.util.UUID uuid, KitType kit) {
         playerKits.put(uuid, kit);
     }
@@ -178,39 +181,9 @@ public class GameManager {
 
         state = GameState.STARTING;
 
-        startCountdown();
-
-        for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
-            giveKit(player);
-        }
     }
 
 
-
-    private void startCountdown(){
-
-        final int[] timeLeft = {5};
-
-        Bukkit.getScheduler().runTaskTimer(plugin, task -> {
-
-            if (timeLeft[0] <= 0) {
-
-                Bukkit.broadcast(
-                        Component.text("GO!", NamedTextColor.GREEN)
-                );
-
-                task.cancel();
-                beginGame();
-                return;
-            }
-
-            Bukkit.broadcast(
-                    Component.text("Starting in " + timeLeft[0] + "...", NamedTextColor.YELLOW)
-            );
-
-            timeLeft[0]--;
-        }, 0L, 20L);
-    }
 
     private void startVotingCountdown() {
 
@@ -301,6 +274,9 @@ public class GameManager {
             giveKit(player);
         }
 
+        landedPlayers.clear();
+        eventsStarted = false;
+
         removePlatform();
 
         for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
@@ -318,11 +294,11 @@ public class GameManager {
                 Component.text("Game Started!", NamedTextColor.GREEN)
         );
 
-        events = new ChaosEvents(plugin, this);
-        events.startChaos();
 
         Bukkit.getScheduler().runTaskLater(plugin, this::endGame, 12000L);
     }
+
+
 
     private void giveKit(org.bukkit.entity.Player player) {
 
@@ -459,7 +435,29 @@ public class GameManager {
         }
     }
 
-    public void endGame() {
+    public void playerLanded(java.util.UUID uuid) {
+
+        landedPlayers.add(uuid);
+
+        // If all alive players landed → start events
+        if (!eventsStarted && landedPlayers.containsAll(alivePlayers)) {
+
+            eventsStarted = true;
+
+            Bukkit.broadcast(
+                    net.kyori.adventure.text.Component.text("Chaos Begins!")
+            );
+
+            events = new ChaosEvents(plugin, this);
+            events.startChaos();
+        }
+    }
+
+    public boolean hasLanded(java.util.UUID uuid) {
+        return landedPlayers.contains(uuid);
+    }
+
+        public void endGame() {
 
         for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
             player.getInventory().clear();

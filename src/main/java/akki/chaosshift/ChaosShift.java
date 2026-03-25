@@ -22,6 +22,8 @@ public final class ChaosShift extends JavaPlugin {
             }
         }
 
+        gameManager = new GameManager(this);
+
         Bukkit.getPluginManager().registerEvents(
                 new PlayerListener(gameManager),
                 this
@@ -36,7 +38,6 @@ public final class ChaosShift extends JavaPlugin {
 
         loadArenaChunks(Bukkit.getWorld("world"));
 
-        gameManager = new GameManager(this);
 
         getCommand("startchaos").setExecutor(new StartChaosCommand(gameManager));
 
