@@ -12,6 +12,10 @@ public final class ChaosShift extends JavaPlugin {
     @Override
     public void onEnable() {
 
+        for (var world : org.bukkit.Bukkit.getWorlds()) {
+            world.setDifficulty(org.bukkit.Difficulty.HARD);
+        }
+
         for (var player : Bukkit.getOnlinePlayers()) {
             if (player.isOp()) {
                 player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.COMPASS));

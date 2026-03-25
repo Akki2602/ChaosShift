@@ -6,8 +6,13 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+
 
 public class PlayerListener implements Listener{
 
@@ -69,6 +74,15 @@ public class PlayerListener implements Listener{
                     )
             );
         }
+
+        var player = event.getEntity();
+
+        org.bukkit.Bukkit.getScheduler().runTaskLater(
+                org.bukkit.Bukkit.getPluginManager().getPlugin("ChaosShift"),
+                () -> player.spigot().respawn(),
+                1L
+        );
+
     }
 
     @org.bukkit.event.EventHandler
@@ -102,13 +116,131 @@ public class PlayerListener implements Listener{
 
         if (event.getItem() == null) return;
 
-        if (event.getItem().getType() != Material.COMPASS) return;
+        var item = event.getItem();
 
-        if (!player.isOp()) return;
+        // 🧭 Open kit menu
+        if (item.getType() == org.bukkit.Material.COMPASS &&
+                item.getItemMeta() != null &&
+                "§aKit Selection".equals(item.getItemMeta().getDisplayName())) {
 
-        event.setCancelled(true);
+            event.setCancelled(true);
+            player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+            return;
+        }
 
-        gameManager.startGame();
+        // 💎 Start game (OP only)
+        if (item.getType() == org.bukkit.Material.EMERALD && player.isOp()) {
+
+            event.setCancelled(true);
+            gameManager.startGame();
+        }
     }
+
+    @EventHandler
+    public void onCreatureSpawn(org.bukkit.event.entity.CreatureSpawnEvent event) {
+
+        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.CUSTOM) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onDifficultyChange(org.bukkit.event.server.ServerLoadEvent event) {
+
+        for (var world : org.bukkit.Bukkit.getWorlds()) {
+            world.setDifficulty(org.bukkit.Difficulty.HARD);
+        }
+    }
+
+    @EventHandler
+    public void onBlockBreak(org.bukkit.event.block.BlockBreakEvent event) {
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onBlockPlace(org.bukkit.event.block.BlockPlaceEvent event) {
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onDrop(PlayerDropItemEvent event) {
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onPickup(EntityPickupItemEvent event) {
+
+        if (event.getEntity() instanceof org.bukkit.entity.Player) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClick(org.bukkit.event.inventory.InventoryClickEvent event) {
+
+        if (event.getView().getTitle().equals("Select Kit")) {
+
+            event.setCancelled(true);
+
+            var player = (org.bukkit.entity.Player) event.getWhoClicked();
+            var item = event.getCurrentItem();
+
+            if (item == null) return;
+
+            switch (item.getType()) {
+
+                case IRON_SWORD -> {
+                    gameManager.voteKit(player.getUniqueId(), KitType.WARRIOR);
+                    player.sendMessage("Voted: Warrior");
+
+                    gameManager.voteKit(player.getUniqueId(), KitType.WARRIOR);
+
+                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                }
+
+                case BOW -> {
+                    gameManager.voteKit(player.getUniqueId(), KitType.ARCHER);
+                    player.sendMessage("Voted: Archer");
+
+                    gameManager.voteKit(player.getUniqueId(), KitType.ARCHER);
+
+                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                }
+
+                case SHIELD -> {
+                    gameManager.voteKit(player.getUniqueId(), KitType.TANK);
+                    player.sendMessage("Voted: Tank");
+
+                    gameManager.voteKit(player.getUniqueId(), KitType.TANK);
+
+                    player.openInventory(KitMenu.createMenu(gameManager.getKitVotes()));
+                }
+            }
+
+            player.closeInventory();
+        }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+
+        var player = event.getPlayer();
+
+        player.getInventory().clear();
+
+        var compass = new org.bukkit.inventory.ItemStack(Material.COMPASS);
+        var meta = compass.getItemMeta();
+        meta.setDisplayName("§aKit Selection");
+        compass.setItemMeta(meta);
+
+        player.getInventory().addItem(compass);
+
+        if (player.isOp()) {
+            player.getInventory().addItem(
+                    new org.bukkit.inventory.ItemStack(Material.EMERALD)
+            );
+        }
+    }
+
 
 }
