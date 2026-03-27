@@ -313,21 +313,30 @@ public class GameManager {
 
     public void forceStopGame() {
 
-        // Stop chaos
+        // Stop chaos safely
         if (events != null) {
             events.stopChaos();
+            events = null;
         }
 
-        // Reset state
+        // Reset core state
         gameRunning = false;
         state = GameState.WAITING;
 
         resetDifficulty();
 
+        alivePlayers.clear();
+        landedPlayers.clear();
+        playerVotes.clear();
+        kitVotes.clear();
+
+        // Reset every player
         for (var player : Bukkit.getOnlinePlayers()) {
 
+            // Teleport to platform
             player.teleport(new org.bukkit.Location(world, 0, 131, 0));
 
+            // Reset state
             player.setGameMode(GameMode.SURVIVAL);
 
             player.setHealth(
@@ -335,11 +344,15 @@ public class GameManager {
             );
 
             player.setFoodLevel(20);
+            player.setFireTicks(0);
 
-            player.getInventory().clear();
+            // Remove potion effects
+            player.getActivePotionEffects()
+                    .forEach(effect -> player.removePotionEffect(effect.getType()));
+
+            // Give pregame items
+            givePregameItems(player);
         }
-
-        alivePlayers.clear();
 
         Bukkit.broadcast(
                 net.kyori.adventure.text.Component.text("Game force stopped!")
@@ -411,6 +424,26 @@ public class GameManager {
         );
 
         checkWinCondition();
+    }
+
+    private void givePregameItems(Player player) {
+        player.getInventory().clear();
+
+        var compass = new ItemStack(Material.COMPASS);
+        var meta = compass.getItemMeta();
+        meta.setDisplayName("§aKit Selection");
+        compass.setItemMeta(meta);
+
+        player.getInventory().addItem(compass);
+
+        if (player.isOp()) {
+            var emerald = new ItemStack(Material.EMERALD);
+            var meta_e = emerald.getItemMeta();
+            meta_e.setDisplayName("§aStart Game");
+            emerald.setItemMeta(meta_e);
+
+            player.getInventory().addItem(emerald);
+        }
     }
 
     public boolean isAlive(java.util.UUID uuid) {
@@ -552,9 +585,28 @@ public class GameManager {
             );
         }
 
-        for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
-            player.teleport(new org.bukkit.Location(world, 0, 131, 0));
+        for (var player : Bukkit.getOnlinePlayers()) {
+
+                // Teleport to platform
+                player.teleport(new org.bukkit.Location(world, 0, 131, 0));
+
+                // Reset state
+                player.setGameMode(GameMode.SURVIVAL);
+
+                player.setHealth(
+                        player.getAttribute(Attribute.MAX_HEALTH).getValue()
+                );
+
+                player.setFoodLevel(20);
+
+                player.getActivePotionEffects()
+                        .forEach(effect -> player.removePotionEffect(effect.getType()));
+
+                // Give items back
+                givePregameItems(player);
         }
+        playerVotes.clear();
+        kitVotes.clear();
         alivePlayers.clear();
         resetDifficulty();
 
