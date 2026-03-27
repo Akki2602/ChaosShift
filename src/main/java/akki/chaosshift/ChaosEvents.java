@@ -22,12 +22,28 @@ public class ChaosEvents {
     private final int maxZ = 30;
     private final int arenaY = 80;
 
+    private final java.util.List<org.bukkit.World> dimensionCycle = new java.util.ArrayList<>();
+    private int currentDimensionIndex = -1;
+    private org.bukkit.World lastWorldUsed = null; // prevents cross-round repeat
+
     private final java.util.List<Runnable> eventPool = new java.util.ArrayList<>();
     private final java.util.Queue<Runnable> eventQueue = new java.util.LinkedList<>();
 
     private final GameManager gameManager;
 
     public ChaosEvents(Plugin plugin, GameManager gameManager) {
+
+        var overworld = Bukkit.getWorld("world");
+        var nether = Bukkit.getWorld("world_nether");
+        var end = Bukkit.getWorld("world_the_end");
+
+        if (overworld != null) dimensionCycle.add(overworld);
+        if (nether != null) dimensionCycle.add(nether);
+        if (end != null) dimensionCycle.add(end);
+
+// Shuffle initial order
+        java.util.Collections.shuffle(dimensionCycle);
+
         this.plugin = plugin;
         this.gameManager = gameManager;
 
@@ -39,6 +55,20 @@ public class ChaosEvents {
         eventPool.add(this::lowGravity);
 
         reshuffleEvents();
+    }
+
+    public void resetDimensionCycle() {
+
+        if (dimensionCycle.size() < 2) return;
+
+        java.util.Collections.shuffle(dimensionCycle);
+
+        // Prevent repeating last dimension across rounds
+        if (lastWorldUsed != null && dimensionCycle.get(0).equals(lastWorldUsed)) {
+            java.util.Collections.rotate(dimensionCycle, 1);
+        }
+
+        currentDimensionIndex = -1;
     }
 
     private void reshuffleEvents() {
@@ -60,12 +90,25 @@ public class ChaosEvents {
 
     public void startChaos() {
 
-        taskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        long interval = Math.max(60L, 500L - (gameManager.getDifficultyLevel() * 40L));
 
-            Runnable event = getNextEvent();
-            if (event != null) event.run();
+        taskId = Bukkit.getScheduler().runTaskTimer(plugin, new Runnable() {
 
-        }, 0L, Math.max(100L, 600L - (gameManager.getDifficultyLevel() * 50L))).getTaskId();
+            @Override
+            public void run() {
+
+                Runnable event = getNextEvent();
+                if (event != null) event.run();
+
+                // Restart task with new interval
+                Bukkit.getScheduler().cancelTask(taskId);
+
+                long interval = Math.max(60L, 500L - (gameManager.getDifficultyLevel() * 40L));
+
+                startChaos(); // restart with new speed
+            }
+
+        }, 0L, Math.max(60L, 500L - (gameManager.getDifficultyLevel() * 40L))).getTaskId();
     }
 
     private void potionEffects() {
@@ -201,7 +244,6 @@ public class ChaosEvents {
                         random.nextInt(5) - 2
                 );
 
-                spawnLoc.setY(world.getHighestBlockYAt(spawnLoc) + 1);
 
                 var entity = world.spawnEntity(spawnLoc, targetMob);
 
@@ -372,100 +414,96 @@ public class ChaosEvents {
 
     private void changeDimension() {
 
-        var overworld = Bukkit.getWorld("world");
-        var nether = Bukkit.getWorld("world_nether");
-        var end = Bukkit.getWorld("world_the_end");
+        if (dimensionCycle.size() < 2) return;
 
-        var worlds = new java.util.ArrayList<org.bukkit.World>();
+        int difficulty = gameManager.getDifficultyLevel();
 
-        if (overworld != null) worlds.add(overworld);
-        if (nether != null) worlds.add(nether);
-        if (end != null) worlds.add(end);
+        // Number of shifts increases with difficulty
+        int shifts = Math.min(3, 1 + difficulty / 4);
 
-        if (worlds.size() < 2) return;
+        for (int s = 0; s < shifts; s++) {
 
-        org.bukkit.World currentWorld = Bukkit.getOnlinePlayers().iterator().next().getWorld();
+            currentDimensionIndex = (currentDimensionIndex + 1) % dimensionCycle.size();
+            var targetWorld = dimensionCycle.get(currentDimensionIndex);
 
-        org.bukkit.World targetWorld;
-        do {
-            targetWorld = worlds.get(random.nextInt(worlds.size()));
-        } while (targetWorld.equals(currentWorld));
+            var players = Bukkit.getOnlinePlayers();
 
-        var players = Bukkit.getOnlinePlayers();
+            int blindnessDuration = 40 + (difficulty * 5);
 
-        for (var p : players) {
-            p.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    PotionEffectType.BLINDNESS,
-                    40,
-                    1
-            ));
-        }
+            for (var p : players) {
+                p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                        PotionEffectType.BLINDNESS,
+                        blindnessDuration,
+                        1
+                ));
 
-        for (var player : players) {
+                // Add confusion at higher levels
+                if (difficulty >= 5) {
+                    p.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                            PotionEffectType.NAUSEA,
+                            60,
+                            0
+                    ));
+                }
+            }
 
-            var currentLoc = player.getLocation();
+            for (var player : players) {
 
-            var origin = new org.bukkit.Location(
-                    currentLoc.getWorld(),
-                    0, 80, 0
-            );
+                var currentLoc = player.getLocation();
 
-            double offsetX = currentLoc.getX() - origin.getX();
-            double offsetZ = currentLoc.getZ() - origin.getZ();
+                var origin = new Location(currentLoc.getWorld(), 0, 80, 0);
 
-            var targetOrigin = new org.bukkit.Location(
-                    targetWorld,
-                    0, 80, 0
-            );
+                double offsetX = currentLoc.getX() - origin.getX();
+                double offsetZ = currentLoc.getZ() - origin.getZ();
 
-            var newLoc = targetOrigin.clone().add(offsetX, 0, offsetZ);
+                // Add chaos offset at higher difficulty
+                if (difficulty >= 6) {
+                    offsetX += (random.nextDouble() - 0.5) * difficulty;
+                    offsetZ += (random.nextDouble() - 0.5) * difficulty;
+                }
 
-            newLoc.setY(80);
+                var targetOrigin = new Location(targetWorld, 0, 80, 0);
 
-            player.teleport(newLoc);
+                var newLoc = targetOrigin.clone().add(offsetX, 0, offsetZ);
+                newLoc.setY(80);
 
-            player.playSound(
-                    player.getLocation(),
-                    Sound.ITEM_CHORUS_FRUIT_TELEPORT,
-                    1f,
-                    1f
-            );
+                player.teleport(newLoc);
 
-            player.showTitle(
-                    net.kyori.adventure.title.Title.title(
-                            net.kyori.adventure.text.Component.text(
-                                    "Reality Shifted!",
-                                    net.kyori.adventure.text.format.TextColor.fromHexString("#a64dff")
-                            ),
-                            net.kyori.adventure.text.Component.text(
-                                    "Entered " + formatWorldName(targetWorld.getName()),
-                                    net.kyori.adventure.text.format.TextColor.fromHexString("#00ffff")
-                            ),
-                            Title.Times.times(
-                                    java.time.Duration.ofMillis(300),
-                                    java.time.Duration.ofMillis(2000),
-                                    java.time.Duration.ofMillis(300)
-                            )
-                    )
-            );
+                player.playSound(
+                        player.getLocation(),
+                        Sound.ITEM_CHORUS_FRUIT_TELEPORT,
+                        1f,
+                        1f + (difficulty * 0.05f)
+                );
 
-            player.sendMessage(
-                    net.kyori.adventure.text.Component.text(
-                            "You have been shifted into " + formatWorldName(targetWorld.getName()) + "!"
-                    )
-            );
+                player.showTitle(
+                        net.kyori.adventure.title.Title.title(
+                                net.kyori.adventure.text.Component.text(
+                                        "Reality Fractured!",
+                                        net.kyori.adventure.text.format.TextColor.fromHexString("#a64dff")
+                                ),
+                                net.kyori.adventure.text.Component.text(
+                                        "Entered " + formatWorldName(targetWorld.getName()),
+                                        net.kyori.adventure.text.format.TextColor.fromHexString("#00ffff")
+                                ),
+                                Title.Times.times(
+                                        java.time.Duration.ofMillis(200),
+                                        java.time.Duration.ofMillis(1500),
+                                        java.time.Duration.ofMillis(200)
+                                )
+                        )
+                );
+            }
+
+            lastWorldUsed = targetWorld;
         }
 
         Bukkit.broadcast(
                 net.kyori.adventure.text.Component.text(
-                        "Everything changed: The dimension shifted!"
+                        "Everything changed: Reality is collapsing! (Level " + difficulty + ")"
                 )
         );
-
-
-
     }
-
     private void mutateBlocks() {
 
         int blocksToChange = 4 + gameManager.getDifficultyLevel();

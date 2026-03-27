@@ -111,7 +111,9 @@ public class GameManager {
     public void startGame(){
 
 
-        if (gameRunning) return;
+        if (gameRunning){
+            forceStopGame();
+        }
         gameRunning = true;
 
         kitVotes.clear();
@@ -533,6 +535,7 @@ public class GameManager {
             );
 
             events = new ChaosEvents(plugin, this);
+            events.resetDimensionCycle(); // IMPORTANT
             events.startChaos();
         }
     }
