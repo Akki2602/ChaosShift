@@ -40,6 +40,7 @@ public final class ChaosShift extends JavaPlugin {
 
 
         getCommand("startchaos").setExecutor(new StartChaosCommand(gameManager));
+        getCommand("stopchaos").setExecutor(new StopChaosCommand(gameManager));
 
     }
 

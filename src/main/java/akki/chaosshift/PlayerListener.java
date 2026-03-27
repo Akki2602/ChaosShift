@@ -250,7 +250,7 @@ public class PlayerListener implements Listener{
             var emerald = new org.bukkit.inventory.ItemStack(Material.EMERALD);
             var meta_e = emerald.getItemMeta();
             meta_e.setDisplayName("§aStart Game");
-            emerald.setItemMeta(meta);
+            emerald.setItemMeta(meta_e);
 
             player.getInventory().addItem(emerald);
         }

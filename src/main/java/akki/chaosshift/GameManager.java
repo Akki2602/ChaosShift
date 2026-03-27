@@ -139,16 +139,13 @@ public class GameManager {
                 var emerald =  new ItemStack(Material.EMERALD);
                 var meta_e = emerald.getItemMeta();
                 meta_e.setDisplayName("§aStart Game");
-                emerald.setItemMeta(meta);
-                emerald.setItemMeta(meta);
+                emerald.setItemMeta(meta_e);
 
                 player.getInventory().addItem(emerald);
             }
         }
 
-
-
-
+        playerVotes.clear();
 
         savePlatform();
 
@@ -191,6 +188,11 @@ public class GameManager {
 
     }
 
+    private void resetDifficulty() {
+        difficultyLevel = 1;
+        gameTime = 0;
+    }
+
 
 
     private void startVotingCountdown() {
@@ -224,18 +226,18 @@ public class GameManager {
 
     }
 
-    public void voteKit(java.util.UUID uuid, KitType kit) {
+    public void voteKit(UUID uuid, KitType kit) {
 
-        // (optional) prevent multiple votes → simplest: just count votes
+        // Remove previous vote
+        if (playerVotes.containsKey(uuid)) {
+            KitType old = playerVotes.get(uuid);
+            kitVotes.put(old, kitVotes.get(old) - 1);
+        }
+
+        playerVotes.put(uuid, kit);
         kitVotes.put(kit, kitVotes.getOrDefault(kit, 0) + 1);
 
-
-
-        Bukkit.broadcast(
-                net.kyori.adventure.text.Component.text(
-                        "Vote: " + kit.name()
-                )
-        );
+        Bukkit.broadcast(Component.text("Vote: " + kit.name()));
     }
 
     private void decideWinningKit() {
@@ -276,6 +278,8 @@ public class GameManager {
 
     private void beginGame(){
 
+        preparePlayersForGame();
+
         decideWinningKit();
 
         for (var player : Bukkit.getOnlinePlayers()) {
@@ -303,7 +307,43 @@ public class GameManager {
         );
 
 
+
         Bukkit.getScheduler().runTaskLater(plugin, this::endGame, 12000L);
+    }
+
+    public void forceStopGame() {
+
+        // Stop chaos
+        if (events != null) {
+            events.stopChaos();
+        }
+
+        // Reset state
+        gameRunning = false;
+        state = GameState.WAITING;
+
+        resetDifficulty();
+
+        for (var player : Bukkit.getOnlinePlayers()) {
+
+            player.teleport(new org.bukkit.Location(world, 0, 131, 0));
+
+            player.setGameMode(GameMode.SURVIVAL);
+
+            player.setHealth(
+                    player.getAttribute(Attribute.MAX_HEALTH).getValue()
+            );
+
+            player.setFoodLevel(20);
+
+            player.getInventory().clear();
+        }
+
+        alivePlayers.clear();
+
+        Bukkit.broadcast(
+                net.kyori.adventure.text.Component.text("Game force stopped!")
+        );
     }
 
 
@@ -440,6 +480,9 @@ public class GameManager {
             }
 
             endGame();
+        } else if (alivePlayers.isEmpty()) {
+            Bukkit.broadcast(Component.text("Draw! No one survived."));
+            endGame();
         }
     }
 
@@ -463,6 +506,22 @@ public class GameManager {
 
     public boolean hasLanded(java.util.UUID uuid) {
         return landedPlayers.contains(uuid);
+    }
+
+    public void preparePlayersForGame() {
+
+        for (var player : Bukkit.getOnlinePlayers()) {
+
+            player.setGameMode(GameMode.SURVIVAL);
+
+            player.setHealth(
+                    player.getAttribute(Attribute.MAX_HEALTH).getValue()
+            );
+
+            player.setFoodLevel(20);
+            player.setFireTicks(0);
+            player.getActivePotionEffects().forEach(effect -> player.removePotionEffect(effect.getType()));
+        }
     }
 
         public void endGame() {
@@ -497,6 +556,7 @@ public class GameManager {
             player.teleport(new org.bukkit.Location(world, 0, 131, 0));
         }
         alivePlayers.clear();
+        resetDifficulty();
 
         // small delay before resetting
         Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 100L);
