@@ -118,6 +118,9 @@ public class PlayerListener implements Listener{
 
         var item = event.getItem();
 
+        // DEBUG (optional)
+        player.sendMessage("Clicked: " + item.getType());
+
         // 🧭 COMPASS → open menu
         if (item.getType() == org.bukkit.Material.COMPASS) {
 
@@ -125,6 +128,8 @@ public class PlayerListener implements Listener{
                     "§aKit Selection".equals(item.getItemMeta().getDisplayName())) {
 
                 event.setCancelled(true);
+
+                player.sendMessage("Opening kit menu..."); // debug
 
                 player.openInventory(KitMenu.createMenu(gameManager));
                 return;
@@ -142,6 +147,8 @@ public class PlayerListener implements Listener{
             }
 
             event.setCancelled(true);
+
+            player.sendMessage("Starting game..."); // debug
 
             gameManager.startGame();
         }
