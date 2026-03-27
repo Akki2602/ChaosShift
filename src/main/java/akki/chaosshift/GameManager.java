@@ -8,6 +8,7 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
@@ -134,7 +135,14 @@ public class GameManager {
 
             // Game start (EMERALD for OP)
             if (player.isOp()) {
-                player.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.EMERALD));
+
+                var emerald =  new ItemStack(Material.EMERALD);
+                var meta_e = emerald.getItemMeta();
+                meta_e.setDisplayName("§aStart Game");
+                emerald.setItemMeta(meta);
+                emerald.setItemMeta(meta);
+
+                player.getInventory().addItem(emerald);
             }
         }
 

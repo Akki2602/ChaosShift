@@ -137,7 +137,9 @@ public class PlayerListener implements Listener{
         }
 
         // 💎 EMERALD → start game
-        if (item.getType() == org.bukkit.Material.EMERALD) {
+        if (item.getType() == org.bukkit.Material.EMERALD &&
+                item.getItemMeta() != null &&
+                "§aStart Game".equals(item.getItemMeta().getDisplayName())) {
 
             if (!player.isOp()) {
                 player.sendMessage("Not OP");
@@ -245,9 +247,12 @@ public class PlayerListener implements Listener{
         player.getInventory().addItem(compass);
 
         if (player.isOp()) {
-            player.getInventory().addItem(
-                    new org.bukkit.inventory.ItemStack(Material.EMERALD)
-            );
+            var emerald = new org.bukkit.inventory.ItemStack(Material.EMERALD);
+            var meta_e = emerald.getItemMeta();
+            meta_e.setDisplayName("§aStart Game");
+            emerald.setItemMeta(meta);
+
+            player.getInventory().addItem(emerald);
         }
     }
 
