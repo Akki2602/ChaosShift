@@ -4,5 +4,9 @@ main: akki.chaosshift.ChaosShift
 api-version: '1.21'
 commands:
   startchaos:
-    description: Starts the ChaosShift game
+    description: Starts the chaos game
     usage: /startchaos
+
+  stopchaos:
+    description: Stops the chaos game
+    usage: /stopchaos
