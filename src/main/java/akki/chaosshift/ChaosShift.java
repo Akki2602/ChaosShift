@@ -22,14 +22,14 @@ public final class ChaosShift extends JavaPlugin {
             }
         }
 
+
         gameManager = new GameManager(this);
 
         Bukkit.getPluginManager().registerEvents(
-                new PlayerListener(gameManager),
+                new PlayerListener(gameManager, this),
                 this
         );
 
-        // Plugin startup logic
         getLogger().info("ChaosShift enabled!");
 
         preloadWorld("world");
@@ -41,6 +41,8 @@ public final class ChaosShift extends JavaPlugin {
 
         getCommand("startchaos").setExecutor(new StartChaosCommand(gameManager));
         getCommand("stopchaos").setExecutor(new StopChaosCommand(gameManager));
+
+
 
     }
 
@@ -68,6 +70,5 @@ public final class ChaosShift extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        // Plugin shutdown logic
     }
 }

@@ -2,10 +2,7 @@ package akki.chaosshift;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.Material;
-import org.bukkit.Sound;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -35,6 +32,8 @@ public class GameManager {
 
     private final java.util.Map<org.bukkit.Location, org.bukkit.Material> platformBlocks = new java.util.HashMap<>();
 
+    private final Map<org.bukkit.World, Map<org.bukkit.Location, org.bukkit.block.data.BlockData>> arenaBlocks = new HashMap<>();
+
     private final java.util.Set<java.util.UUID> alivePlayers = new java.util.HashSet<>();
 
     private final java.util.Map<java.util.UUID, KitType> playerKits = new java.util.HashMap<>();
@@ -43,8 +42,15 @@ public class GameManager {
 
     private int votingTime = 10;
 
+    private int gameTaskId = -1;
+
     private final java.util.Set<java.util.UUID> landedPlayers = new java.util.HashSet<>();
+
     private boolean eventsStarted = false;
+
+    private final java.util.Map<KitType, Integer> kitVotes = new java.util.HashMap<>();
+
+    private KitType selectedKit = KitType.WARRIOR;
 
     public void setKit(java.util.UUID uuid, KitType kit) {
         playerKits.put(uuid, kit);
@@ -57,9 +63,6 @@ public class GameManager {
     public KitType getKit(java.util.UUID uuid) {
         return playerKits.getOrDefault(uuid, KitType.WARRIOR);
     }
-
-    private final java.util.Map<KitType, Integer> kitVotes = new java.util.HashMap<>();
-    private KitType selectedKit = KitType.WARRIOR;
 
     public GameManager(Plugin plugin){
         this.plugin = plugin;
@@ -108,10 +111,47 @@ public class GameManager {
         }
     }
 
+    private void saveArena(org.bukkit.World world) {
+
+        if (world == null) return;
+
+        Map<org.bukkit.Location, org.bukkit.block.data.BlockData> blocks = new HashMap<>();
+
+        int minX = -20, maxX = 20;
+        int minY = 75, maxY = 140;
+        int minZ = -20, maxZ = 20;
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    if (y >= 118 && y <= 130) continue;
+                    var loc = new org.bukkit.Location(world, x, y, z);
+                    blocks.put(loc, loc.getBlock().getBlockData());
+                }
+            }
+        }
+
+        arenaBlocks.put(world, blocks);
+    }
+
+    private void restoreArena(org.bukkit.World world) {
+
+        if (world == null) return;
+
+        var blocks = arenaBlocks.get(world);
+        if (blocks == null) return;
+
+        for (var entry : blocks.entrySet()) {
+            entry.getKey().getBlock().setBlockData(entry.getValue(), false);
+        }
+    }
+
     public void startGame(){
 
 
-        if (gameRunning) return;
+        if (gameRunning) {
+            forceStopGame();
+        }
         gameRunning = true;
 
         kitVotes.clear();
@@ -125,7 +165,6 @@ public class GameManager {
 
             player.getInventory().clear();
 
-            // Kit selector (COMPASS)
             var compass = new org.bukkit.inventory.ItemStack(org.bukkit.Material.COMPASS);
             var meta = compass.getItemMeta();
             meta.setDisplayName("§aKit Selection");
@@ -133,7 +172,6 @@ public class GameManager {
 
             player.getInventory().addItem(compass);
 
-            // Game start (EMERALD for OP)
             if (player.isOp()) {
 
                 var emerald =  new ItemStack(Material.EMERALD);
@@ -143,11 +181,17 @@ public class GameManager {
 
                 player.getInventory().addItem(emerald);
             }
+
+
         }
 
         playerVotes.clear();
 
         savePlatform();
+
+        saveArena(Bukkit.getWorld("world"));
+        saveArena(Bukkit.getWorld("world_nether"));
+        saveArena(Bukkit.getWorld("world_the_end"));
 
         for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
             player.teleport(new org.bukkit.Location(world, 0, 131, 0));
@@ -166,11 +210,11 @@ public class GameManager {
             return;
         }
 
-        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        gameTaskId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
 
             gameTime++;
 
-            if (gameTime % 30 == 0) {
+            if (gameTime % 60 == 0 && difficultyLevel < 10) {
                 difficultyLevel++;
 
                 Bukkit.broadcast(
@@ -180,10 +224,20 @@ public class GameManager {
                 );
             }
 
+            for (var player : Bukkit.getOnlinePlayers()) {
+
+                if (!alivePlayers.contains(player.getUniqueId())) continue;
+
+                double maxHealth = player.getAttribute(Attribute.MAX_HEALTH).getValue();
+
+                if (player.getHealth() < maxHealth) {
+                    player.setHealth(Math.min(maxHealth, player.getHealth() + 0.5));
+                }
+            }
+
             updateScoreboard();
 
-        }, 20L, 20L);
-
+        }, 20L, 20L).getTaskId();
         state = GameState.STARTING;
 
     }
@@ -192,8 +246,6 @@ public class GameManager {
         difficultyLevel = 1;
         gameTime = 0;
     }
-
-
 
     private void startVotingCountdown() {
 
@@ -228,7 +280,6 @@ public class GameManager {
 
     public void voteKit(UUID uuid, KitType kit) {
 
-        // Remove previous vote
         if (playerVotes.containsKey(uuid)) {
             KitType old = playerVotes.get(uuid);
             kitVotes.put(old, kitVotes.get(old) - 1);
@@ -258,7 +309,6 @@ public class GameManager {
             }
         }
 
-        // Tie → random
         if (winners.size() > 1) {
             selectedKit = winners.get(new java.util.Random().nextInt(winners.size()));
         } else {
@@ -313,13 +363,16 @@ public class GameManager {
 
     public void forceStopGame() {
 
-        // Stop chaos safely
+        if (gameTaskId != -1) {
+            Bukkit.getScheduler().cancelTask(gameTaskId);
+            gameTaskId = -1;
+        }
+
         if (events != null) {
             events.stopChaos();
             events = null;
         }
 
-        // Reset core state
         gameRunning = false;
         state = GameState.WAITING;
 
@@ -330,13 +383,10 @@ public class GameManager {
         playerVotes.clear();
         kitVotes.clear();
 
-        // Reset every player
         for (var player : Bukkit.getOnlinePlayers()) {
 
-            // Teleport to platform
             player.teleport(new org.bukkit.Location(world, 0, 131, 0));
 
-            // Reset state
             player.setGameMode(GameMode.SURVIVAL);
 
             player.setHealth(
@@ -346,11 +396,9 @@ public class GameManager {
             player.setFoodLevel(20);
             player.setFireTicks(0);
 
-            // Remove potion effects
             player.getActivePotionEffects()
                     .forEach(effect -> player.removePotionEffect(effect.getType()));
 
-            // Give pregame items
             givePregameItems(player);
         }
 
@@ -358,8 +406,6 @@ public class GameManager {
                 net.kyori.adventure.text.Component.text("Game force stopped!")
         );
     }
-
-
 
     private void giveKit(org.bukkit.entity.Player player) {
 
@@ -374,7 +420,7 @@ public class GameManager {
                 inv.setArmorContents(new org.bukkit.inventory.ItemStack[]{
                         new org.bukkit.inventory.ItemStack(org.bukkit.Material.IRON_BOOTS),
                         new org.bukkit.inventory.ItemStack(org.bukkit.Material.IRON_LEGGINGS),
-                        new org.bukkit.inventory.ItemStack(org.bukkit.Material.IRON_CHESTPLATE),
+                        new org.bukkit.inventory.ItemStack(Material.DIAMOND_CHESTPLATE),
                         new org.bukkit.inventory.ItemStack(org.bukkit.Material.IRON_HELMET)
                 });
             }
@@ -382,6 +428,12 @@ public class GameManager {
             case ARCHER -> {
                 inv.addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.BOW));
                 inv.addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.ARROW, 32));
+                inv.setArmorContents(new org.bukkit.inventory.ItemStack[]{
+                        new org.bukkit.inventory.ItemStack(Material.LEATHER_BOOTS),
+                        new org.bukkit.inventory.ItemStack(Material.LEATHER_LEGGINGS),
+                        new org.bukkit.inventory.ItemStack(Material.LEATHER_CHESTPLATE),
+                        new org.bukkit.inventory.ItemStack(Material.LEATHER_HELMET)
+                });
             }
 
             case TANK -> {
@@ -409,7 +461,9 @@ public class GameManager {
 
         if (player != null) {
 
-            player.setGameMode(GameMode.SPECTATOR);
+            if (state == GameState.RUNNING) {
+                player.setGameMode(GameMode.SPECTATOR);
+            }
 
             player.teleport(new org.bukkit.Location(
                     Bukkit.getWorld("world"), 0, 131, 0
@@ -467,23 +521,17 @@ public class GameManager {
 
             int score = 6;
 
-            // Alive players
             obj.getScore("§aAlive: §f" + alivePlayers.size()).setScore(score--);
 
-            // Blank line
             obj.getScore(" ").setScore(score--);
 
-            // Difficulty
             obj.getScore("§cDifficulty: §f" + difficultyLevel).setScore(score--);
 
-            // Blank line (must be different)
             obj.getScore("  ").setScore(score--);
 
-            // Time
             obj.getScore("§bTime: §f" + gameTime + "s").setScore(score--);
 
-            // Footer (optional)
-            obj.getScore("§7§oakki").setScore(score);
+            obj.getScore("§7§oakki2602 :D").setScore(score);
 
             player.setScoreboard(board);
         }
@@ -523,7 +571,6 @@ public class GameManager {
 
         landedPlayers.add(uuid);
 
-        // If all alive players landed → start events
         if (!eventsStarted && landedPlayers.containsAll(alivePlayers)) {
 
             eventsStarted = true;
@@ -547,9 +594,8 @@ public class GameManager {
 
             player.setGameMode(GameMode.SURVIVAL);
 
-            player.setHealth(
-                    player.getAttribute(Attribute.MAX_HEALTH).getValue()
-            );
+            player.getAttribute(Attribute.MAX_HEALTH).setBaseValue(24.0);
+            player.setHealth(24);
 
             player.setFoodLevel(20);
             player.setFireTicks(0);
@@ -557,7 +603,12 @@ public class GameManager {
         }
     }
 
-        public void endGame() {
+    public void endGame() {
+
+            if (gameTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(gameTaskId);
+                gameTaskId = -1;
+            }
 
         for (var player : org.bukkit.Bukkit.getOnlinePlayers()) {
             player.getInventory().clear();
@@ -567,7 +618,6 @@ public class GameManager {
 
         state = GameState.ENDING;
 
-        // stop chaos FIRST
         if (events != null) {
             events.stopChaos();
         }
@@ -587,31 +637,48 @@ public class GameManager {
 
         for (var player : Bukkit.getOnlinePlayers()) {
 
-                // Teleport to platform
-                player.teleport(new org.bukkit.Location(world, 0, 131, 0));
+            alivePlayers.remove(player.getUniqueId());
+            player.setGameMode(GameMode.SURVIVAL);
 
-                // Reset state
-                player.setGameMode(GameMode.SURVIVAL);
+            player.teleport(new org.bukkit.Location(world, 0, 131, 0));
 
-                player.setHealth(
-                        player.getAttribute(Attribute.MAX_HEALTH).getValue()
-                );
+            player.setHealth(
+                    player.getAttribute(Attribute.MAX_HEALTH).getValue()
+            );
 
-                player.setFoodLevel(20);
+            player.setFoodLevel(20);
+            player.setFireTicks(0);
 
-                player.getActivePotionEffects()
-                        .forEach(effect -> player.removePotionEffect(effect.getType()));
+            player.setFallDistance(0);
 
-                // Give items back
-                givePregameItems(player);
+            player.setAllowFlight(false);
+            player.setFlying(false);
+
+            player.getActivePotionEffects()
+                    .forEach(effect -> player.removePotionEffect(effect.getType()));
+
+            givePregameItems(player);
         }
+
         playerVotes.clear();
         kitVotes.clear();
         alivePlayers.clear();
         resetDifficulty();
 
-        // small delay before resetting
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+
+            restoreArena(Bukkit.getWorld("world"));
+            restoreArena(Bukkit.getWorld("world_nether"));
+            restoreArena(Bukkit.getWorld("world_the_end"));
+
+        }, 80L);
         Bukkit.getScheduler().runTaskLater(plugin, () -> state = GameState.WAITING, 100L);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (var player : Bukkit.getOnlinePlayers()) {
+                player.setGameMode(GameMode.SURVIVAL);
+            }
+        }, 2L);
     }
 
     public GameState getState() {

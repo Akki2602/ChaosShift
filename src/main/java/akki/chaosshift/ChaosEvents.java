@@ -16,16 +16,12 @@ public class ChaosEvents {
     private final Random random = new Random();
     private int taskId;
 
-    private final int minX = -30;
-    private final int maxX = 30;
-    private final int minZ = -30;
-    private final int maxZ = 30;
-    private final int arenaY = 80;
-
     private final java.util.List<Runnable> eventPool = new java.util.ArrayList<>();
     private final java.util.Queue<Runnable> eventQueue = new java.util.LinkedList<>();
 
     private final GameManager gameManager;
+
+    private int dimensionIndex = 0;
 
     public ChaosEvents(Plugin plugin, GameManager gameManager) {
         this.plugin = plugin;
@@ -35,8 +31,9 @@ public class ChaosEvents {
         eventPool.add(this::spawnChasingMobs);
         eventPool.add(this::teleportSwap);
         eventPool.add(this::changeDimension);
-        eventPool.add(this::mutateBlocks);
         eventPool.add(this::lowGravity);
+        eventPool.add(this::changeDimension);
+        eventPool.add(this::spawnChasingMobs);
 
         reshuffleEvents();
     }
@@ -65,7 +62,7 @@ public class ChaosEvents {
             Runnable event = getNextEvent();
             if (event != null) event.run();
 
-        }, 0L, Math.max(100L, 600L - (gameManager.getDifficultyLevel() * 50L))).getTaskId();
+        }, 0L, 300L).getTaskId();
     }
 
     private void potionEffects() {
@@ -127,7 +124,6 @@ public class ChaosEvents {
 
         int difficulty = gameManager.getDifficultyLevel();
 
-        // scale but limit max power
         int amp = Math.min(5, difficulty);
 
         for (var player : Bukkit.getOnlinePlayers()) {
@@ -201,20 +197,22 @@ public class ChaosEvents {
                         random.nextInt(5) - 2
                 );
 
-                spawnLoc.setY(world.getHighestBlockYAt(spawnLoc) + 1);
+                spawnLoc.setY(81);
+                if (spawnLoc.getBlock().getType().isSolid()) {
+                    spawnLoc.setY(spawnLoc.getY() + 1);
+                }
 
-                var entity = world.spawnEntity(spawnLoc, targetMob);
+                spawnLoc.getChunk().load();
 
-                if (entity instanceof org.bukkit.entity.Mob mob) {
+                var entity = world.spawn(spawnLoc, (Class<? extends LivingEntity>) targetMob.getEntityClass(), spawn -> {
+                    if (spawn instanceof Mob mob) {
+                        mob.setTarget(player);
+                    }
+                });
+
+                if (entity instanceof Mob mob) {
                     mob.setTarget(player);
-
                     applyMobScaling(mob, difficulty);
-
-                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                        if (!mob.isDead()) {
-                            mob.remove();
-                        }
-                    }, 200L); // 10 seconds
                 }
 
             }
@@ -251,21 +249,18 @@ public class ChaosEvents {
 
     private void applyMobScaling(org.bukkit.entity.Mob mob, int difficulty) {
 
-        // Speed scaling
         mob.addPotionEffect(new org.bukkit.potion.PotionEffect(
                 org.bukkit.potion.PotionEffectType.SPEED,
                 200,
                 Math.min(3, difficulty / 2)
         ));
 
-        // Strength scaling
         mob.addPotionEffect(new org.bukkit.potion.PotionEffect(
                 org.bukkit.potion.PotionEffectType.STRENGTH,
                 200,
                 Math.min(2, difficulty / 3)
         ));
 
-        // Extra health scaling
         var attribute = mob.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         if (attribute != null) {
             double newHealth = attribute.getBaseValue() + (difficulty * 2);
@@ -273,8 +268,7 @@ public class ChaosEvents {
             mob.setHealth(newHealth);
         }
 
-        // Optional: make mobs slightly faster AI
-        mob.setPersistent(false); // prevents buildup
+        mob.setPersistent(false);
     }
 
     private java.util.List<org.bukkit.entity.EntityType> getMobsForWorld(org.bukkit.World world) {
@@ -322,7 +316,7 @@ public class ChaosEvents {
         for (Player p : players) {
             p.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     PotionEffectType.BLINDNESS,
-                    40, // 2 seconds
+                    40,
                     1
             ));
         }
@@ -376,20 +370,17 @@ public class ChaosEvents {
         var nether = Bukkit.getWorld("world_nether");
         var end = Bukkit.getWorld("world_the_end");
 
-        var worlds = new java.util.ArrayList<org.bukkit.World>();
-
-        if (overworld != null) worlds.add(overworld);
-        if (nether != null) worlds.add(nether);
-        if (end != null) worlds.add(end);
-
-        if (worlds.size() < 2) return;
-
-        org.bukkit.World currentWorld = Bukkit.getOnlinePlayers().iterator().next().getWorld();
+        if (overworld == null || nether == null || end == null) return;
 
         org.bukkit.World targetWorld;
-        do {
-            targetWorld = worlds.get(random.nextInt(worlds.size()));
-        } while (targetWorld.equals(currentWorld));
+
+        switch (dimensionIndex) {
+            case 0 -> targetWorld = nether;
+            case 1 -> targetWorld = end;
+            default -> targetWorld = overworld;
+        }
+
+        dimensionIndex = (dimensionIndex + 1) % 3;
 
         var players = Bukkit.getOnlinePlayers();
 
@@ -405,22 +396,21 @@ public class ChaosEvents {
 
             var currentLoc = player.getLocation();
 
-            var origin = new org.bukkit.Location(
+            var origin = new Location(
                     currentLoc.getWorld(),
-                    0, 80, 0
+                    0, 81, 0
             );
 
             double offsetX = currentLoc.getX() - origin.getX();
             double offsetZ = currentLoc.getZ() - origin.getZ();
 
-            var targetOrigin = new org.bukkit.Location(
+            var targetOrigin = new Location(
                     targetWorld,
-                    0, 80, 0
+                    0, 81, 0
             );
 
             var newLoc = targetOrigin.clone().add(offsetX, 0, offsetZ);
-
-            newLoc.setY(80);
+            newLoc.setY(81);
 
             player.teleport(newLoc);
 
@@ -440,105 +430,17 @@ public class ChaosEvents {
                             net.kyori.adventure.text.Component.text(
                                     "Entered " + formatWorldName(targetWorld.getName()),
                                     net.kyori.adventure.text.format.TextColor.fromHexString("#00ffff")
-                            ),
-                            Title.Times.times(
-                                    java.time.Duration.ofMillis(300),
-                                    java.time.Duration.ofMillis(2000),
-                                    java.time.Duration.ofMillis(300)
                             )
-                    )
-            );
-
-            player.sendMessage(
-                    net.kyori.adventure.text.Component.text(
-                            "You have been shifted into " + formatWorldName(targetWorld.getName()) + "!"
                     )
             );
         }
 
         Bukkit.broadcast(
                 net.kyori.adventure.text.Component.text(
-                        "Everything changed: The dimension shifted!"
-                )
-        );
-
-
-
-    }
-
-    private void mutateBlocks() {
-
-        int blocksToChange = 4 + gameManager.getDifficultyLevel();
-
-        var materials = new org.bukkit.Material[]{
-                Material.SLIME_BLOCK,
-                Material.HONEY_BLOCK,
-                Material.MAGMA_BLOCK,
-                Material.AIR
-        };
-
-        var players = new java.util.ArrayList<>(Bukkit.getOnlinePlayers());
-        java.util.Collections.shuffle(players);
-
-        players.stream().limit(3).forEach(player -> {
-
-            var world = player.getWorld();
-            var baseLoc = player.getLocation();
-
-            for (int i = 0; i < blocksToChange; i++) {
-
-                int xOffset = random.nextInt(7) - 3;
-                int zOffset = random.nextInt(7) - 3;
-
-                int x = baseLoc.getBlockX() + xOffset;
-                int z = baseLoc.getBlockZ() + zOffset;
-
-                if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
-
-                var loc = new org.bukkit.Location(world, x, arenaY, z);
-                var block = loc.getBlock();
-
-                if (block.getType() == Material.AIR) continue;
-
-                var oldMaterial = block.getType();
-                var newMaterial = materials[random.nextInt(materials.length)];
-
-                block.setType(newMaterial);
-
-                Bukkit.getScheduler().runTaskLater(plugin, () -> block.setType(oldMaterial), 80L);
-            }
-            player.playSound(
-                    player.getLocation(),
-                    Sound.BLOCK_SLIME_BLOCK_PLACE,
-                    1f,
-                    1f
-            );
-
-            player.showTitle(
-                    net.kyori.adventure.title.Title.title(
-                            net.kyori.adventure.text.Component.text(
-                                    "Unstable Ground!",
-                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ff9900")
-                            ),
-                            net.kyori.adventure.text.Component.text(
-                                    "Watch your step!",
-                                    net.kyori.adventure.text.format.TextColor.fromHexString("#ffff00")
-                            )
-                    )
-            );
-        });
-
-        Bukkit.broadcast(
-                net.kyori.adventure.text.Component.text(
-                        "Everything changed: The ground is unstable!"
+                        "Dimension changed to " + formatWorldName(targetWorld.getName())
                 )
         );
     }
-
-
-
-
-
 
     private String formatWorldName(String name) {
         return switch (name) {
