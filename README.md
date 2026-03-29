@@ -1,3 +1,4 @@
+#**Short Summary**
 This Plugin adds a chaotic twist to normal pvp arena games. This has SUPER engaging new features such as dimension shift, location swap, power surge and much more to make the normal boring pvp super fun.
 
 # **Features**
